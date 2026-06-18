@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tagline
 
-## Getting Started
+AI-powered changelog generator. Paste a GitHub repo URL, pick two tags, and get a clean human-readable changelog in seconds.
 
-First, run the development server:
+## How it works
+
+1. Enter a GitHub repository URL
+2. Select a **from** and **to** tag (auto-loaded from the repo, or type manually)
+3. Click **Generate** — Tagline fetches the commits between the tags and uses Claude to write a formatted markdown changelog
+4. Copy the result with one click
+
+## Setup
+
+```bash
+npm install
+```
+
+Create a `.env.local` file:
+
+```
+ANTHROPIC_API_KEY=your_anthropic_api_key
+```
+
+A GitHub token is optional but recommended to avoid rate limits — it can be entered directly in the UI.
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Next.js](https://nextjs.org) 14 (App Router)
+- [Claude](https://anthropic.com) via the Anthropic API
+- [GitHub REST API](https://docs.github.com/en/rest)
+- Tailwind CSS
