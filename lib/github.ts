@@ -92,7 +92,7 @@ export async function getLatestTags(
   count = 10,
   token?: string
 ): Promise<GitHubTag[]> {
-  const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/tags?per_page=${count}`;
+  const url = `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/tags?per_page=${count}`;
   const response = await githubFetch(url, token);
   const tags = (await response.json()) as GitHubTagResponse[];
 
@@ -109,7 +109,7 @@ async function fetchCommitsPage(
   page: number,
   token?: string
 ): Promise<GitHubCommitResponse[]> {
-  const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/commits?sha=${encodeURIComponent(sha)}&per_page=100&page=${page}`;
+  const url = `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?sha=${encodeURIComponent(sha)}&per_page=100&page=${page}`;
   const response = await githubFetch(url, token);
   return (await response.json()) as GitHubCommitResponse[];
 }
@@ -121,7 +121,7 @@ export async function getCommitsBetweenTags(
   head: string,
   token?: string
 ): Promise<GitHubCommit[]> {
-  const compareUrl = `${GITHUB_API_BASE}/repos/${owner}/${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`;
+  const compareUrl = `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`;
   const compareResponse = await githubFetch(compareUrl, token);
   const comparison = (await compareResponse.json()) as GitHubCompareResponse;
 
