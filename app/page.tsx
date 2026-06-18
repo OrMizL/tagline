@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
+import type { GitHubTag } from "@/lib/github";
 
 type ParsedRepo = {
   owner: string;
@@ -12,6 +13,8 @@ type GenerateResponse =
   | { changelog: string }
   | { message: string }
   | { error: string };
+
+type TagsResponse = { tags: GitHubTag[] } | { error: string };
 
 function parseRepoUrl(input: string): ParsedRepo | null {
   const match = input
@@ -81,6 +84,85 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [changelog, setChangelog] = useState<string | null>(null);
+  const [tags, setTags] = useState<GitHubTag[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(false);
+  const [tagsError, setTagsError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const tagsRequestRef = useRef<string | null>(null);
+
+  async function loadTags() {
+    const parsed = parseRepoUrl(repoUrl);
+
+    if (!parsed) {
+      return;
+    }
+
+    if (tags.length > 0) {
+      return;
+    }
+
+    const requestKey = `${parsed.owner}/${parsed.repo}`;
+    tagsRequestRef.current = requestKey;
+
+    setTagsLoading(true);
+    setTagsError(null);
+
+    try {
+      const params = new URLSearchParams({
+        owner: parsed.owner,
+        repo: parsed.repo,
+      });
+
+      const response = await fetch(`/api/tags?${params.toString()}`, {
+        headers: token ? { "x-github-token": token } : undefined,
+      });
+
+      const data = (await response.json()) as TagsResponse;
+
+      if (tagsRequestRef.current !== requestKey) {
+        return;
+      }
+
+      if (!response.ok || "error" in data) {
+        setTags([]);
+        setTagsError("error" in data ? data.error : "Failed to load tags");
+        return;
+      }
+
+      setTags(data.tags);
+      setFromTag((prev) =>
+        data.tags.some((tag) => tag.name === prev) ? prev : ""
+      );
+      setToTag((prev) =>
+        data.tags.some((tag) => tag.name === prev) ? prev : ""
+      );
+    } catch (err) {
+      if (tagsRequestRef.current !== requestKey) {
+        return;
+      }
+
+      setTags([]);
+      setTagsError(err instanceof Error ? err.message : "Failed to load tags");
+    } finally {
+      if (tagsRequestRef.current === requestKey) {
+        setTagsLoading(false);
+      }
+    }
+  }
+
+  async function handleCopy() {
+    if (!changelog) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(changelog);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard access can be denied (e.g. insecure context, permissions) — fail silently.
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,6 +174,7 @@ export default function Home() {
     setError(null);
     setInfo(null);
     setChangelog(null);
+    setCopied(false);
 
     const parsed = parseRepoUrl(repoUrl);
 
@@ -173,10 +256,26 @@ export default function Home() {
                 type="text"
                 required
                 value={repoUrl}
-                onChange={(e) => setRepoUrl(e.target.value)}
+                onChange={(e) => {
+                  setRepoUrl(e.target.value);
+                  setTags([]);
+                  setTagsError(null);
+                }}
+                onBlur={loadTags}
                 placeholder="https://github.com/vercel/next.js"
                 className="w-full rounded-md border border-stone-700 bg-stone-950 px-3 py-2.5 font-mono text-sm text-stone-100 placeholder:text-stone-600 focus:border-amber-400/60 focus:outline-none focus:ring-1 focus:ring-amber-400/30"
               />
+              {tagsLoading && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-stone-600">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-stone-700 border-t-amber-400" />
+                  Loading tags
+                </p>
+              )}
+              {tagsError && !tagsLoading && (
+                <p className="mt-1.5 text-xs text-stone-600">
+                  Tag list unavailable &mdash; enter tags manually
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3">
@@ -187,15 +286,34 @@ export default function Home() {
                 >
                   From tag
                 </label>
-                <input
-                  id="fromTag"
-                  type="text"
-                  required
-                  value={fromTag}
-                  onChange={(e) => setFromTag(e.target.value)}
-                  placeholder="v18.0.0"
-                  className="w-full rounded-md border border-stone-700 bg-stone-950 px-3 py-2.5 font-mono text-sm text-stone-100 placeholder:text-stone-600 focus:border-amber-400/60 focus:outline-none focus:ring-1 focus:ring-amber-400/30"
-                />
+                {tags.length > 0 ? (
+                  <select
+                    id="fromTag"
+                    required
+                    value={fromTag}
+                    onChange={(e) => setFromTag(e.target.value)}
+                    className="w-full rounded-md border border-stone-700 bg-stone-950 px-3 py-2.5 font-mono text-sm text-stone-100 focus:border-amber-400/60 focus:outline-none focus:ring-1 focus:ring-amber-400/30"
+                  >
+                    <option value="" disabled>
+                      Select a tag
+                    </option>
+                    {tags.map((tag) => (
+                      <option key={tag.name} value={tag.name}>
+                        {tag.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id="fromTag"
+                    type="text"
+                    required
+                    value={fromTag}
+                    onChange={(e) => setFromTag(e.target.value)}
+                    placeholder="v18.0.0"
+                    className="w-full rounded-md border border-stone-700 bg-stone-950 px-3 py-2.5 font-mono text-sm text-stone-100 placeholder:text-stone-600 focus:border-amber-400/60 focus:outline-none focus:ring-1 focus:ring-amber-400/30"
+                  />
+                )}
               </div>
               <span className="pb-2.5 text-stone-600">&rarr;</span>
               <div>
@@ -205,15 +323,34 @@ export default function Home() {
                 >
                   To tag
                 </label>
-                <input
-                  id="toTag"
-                  type="text"
-                  required
-                  value={toTag}
-                  onChange={(e) => setToTag(e.target.value)}
-                  placeholder="v18.1.0"
-                  className="w-full rounded-md border border-stone-700 bg-stone-950 px-3 py-2.5 font-mono text-sm text-stone-100 placeholder:text-stone-600 focus:border-amber-400/60 focus:outline-none focus:ring-1 focus:ring-amber-400/30"
-                />
+                {tags.length > 0 ? (
+                  <select
+                    id="toTag"
+                    required
+                    value={toTag}
+                    onChange={(e) => setToTag(e.target.value)}
+                    className="w-full rounded-md border border-stone-700 bg-stone-950 px-3 py-2.5 font-mono text-sm text-stone-100 focus:border-amber-400/60 focus:outline-none focus:ring-1 focus:ring-amber-400/30"
+                  >
+                    <option value="" disabled>
+                      Select a tag
+                    </option>
+                    {tags.map((tag) => (
+                      <option key={tag.name} value={tag.name}>
+                        {tag.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id="toTag"
+                    type="text"
+                    required
+                    value={toTag}
+                    onChange={(e) => setToTag(e.target.value)}
+                    placeholder="v18.1.0"
+                    className="w-full rounded-md border border-stone-700 bg-stone-950 px-3 py-2.5 font-mono text-sm text-stone-100 placeholder:text-stone-600 focus:border-amber-400/60 focus:outline-none focus:ring-1 focus:ring-amber-400/30"
+                  />
+                )}
               </div>
             </div>
 
@@ -267,9 +404,18 @@ export default function Home() {
 
         {changelog && (
           <div className="mt-6 animate-fade-up rounded-lg border border-stone-800 bg-stone-900/60 p-6">
-            <div className="mb-4 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-stone-500">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              Changelog
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-stone-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                Changelog
+              </div>
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="rounded-md border border-stone-700 px-2.5 py-1 text-xs font-medium text-stone-400 transition-colors hover:border-stone-600 hover:text-stone-200"
+              >
+                {copied ? "Copied!" : "Copy"}
+              </button>
             </div>
             <ReactMarkdown components={markdownComponents}>
               {changelog}
